@@ -1,12 +1,22 @@
 #!/bin/bash
 
-# Variables 0114
+# Variables
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 VISIBILITY="private"     # 'private', 'internal', or 'public'
 GITLAB_URL="https://git.lab.example.com"
 WORKSTATION_DIR="/home/student/projects"  # Directory to clone the repository
 TOKEN="auto-clone-token-123"  # Replace with a secure random token if required
+GITHUB_REPO_URL="https://github.com/sugum2901/web_server.git"
+
+# Function to suppress output unless there is an error
+execute() {
+  "$@" >/dev/null 2>&1
+  if [[ $? -ne 0 ]]; then
+    echo "Error executing: $*"
+    exit 1
+  fi
+}
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -32,14 +42,8 @@ else
 end
 EOF
 
-if [[ $? -ne 0 ]]; then
-  echo "Failed to delete the repository. Please check the error logs."
-  exit 1
-fi
-
 # Step 2: Create the Repository
 echo "Creating repository '$REPO_NAME' for user '$USER_USERNAME'..."
-
 gitlab-rails console <<EOF
 user = User.find_by_username('$USER_USERNAME')
 if user.nil?
@@ -56,63 +60,43 @@ project = Project.new(
 
 project.creator = user
 if project.save
-  puts "Repository '$REPO_NAME' created successfully."
-
-  # Force repository creation
   project.repository.create_if_not_exists
-  puts "Repository storage initialized."
+  puts "Repository '$REPO_NAME' created and storage initialized."
 else
   puts "Error: #{project.errors.full_messages.join(', ')}"
   exit 1
 end
 
 # Generate a Personal Access Token for the user
-token = user.personal_access_tokens.create!(
-  name: 'Automated Clone Token',
-  scopes: [:read_repository, :write_repository]
-)
-token.set_token('$TOKEN')  # Assign the provided token
+token = user.personal_access_tokens.find_by(name: 'Automated Clone Token') ||
+  user.personal_access_tokens.create!(
+    name: 'Automated Clone Token',
+    scopes: [:read_repository, :write_repository]
+  )
+token.set_token('$TOKEN')
 token.save
-puts "Personal Access Token: #{token.token}"
 EOF
 
-if [[ $? -ne 0 ]]; then
-  echo "Failed to create repository or generate access token."
-  exit 1
-fi
-
-# Step 3: Initialize Repository and Push Initial Commit
-echo "Initializing repository with an initial commit..."
-
+# Step 3: Clone GitHub Repository and Push to GitLab
+echo "Cloning contents from GitHub repository '$GITHUB_REPO_URL'..."
 TMP_DIR=$(mktemp -d)
-GIT_CLONE_URL="${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
 
-git clone "$GIT_CLONE_URL" "$TMP_DIR" --quiet
-if [[ $? -ne 0 ]]; then
-  echo "Failed to clone the repository. Ensure HTTPS and PAT are configured correctly."
-  exit 1
-fi
-
+echo "Pushing contents to GitLab repository '$REPO_NAME'..."
 cd "$TMP_DIR"
-if [[ ! -f README.md ]]; then
-  echo "# $REPO_NAME Project" > README.md
-  git add README.md
-  git commit -m "Initial commit" --quiet
-  git push origin main --quiet
-fi
+execute git remote set-url origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+execute git branch -M main
+execute git push -u origin main
 cd -
+
+# Clean up temporary GitHub clone
+echo "Cleaning up temporary GitHub clone..."
 rm -rf "$TMP_DIR"
 
 # Step 4: Clone the Repository on Workstation
 echo "Cloning repository to '$WORKSTATION_DIR/$REPO_NAME'..."
-
 mkdir -p "$WORKSTATION_DIR"
 cd "$WORKSTATION_DIR"
+execute git clone "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}" "$REPO_NAME"
 
-git clone "$GIT_CLONE_URL" "$REPO_NAME" --quiet
-if [[ $? -eq 0 ]]; then
-  echo "Repository cloned successfully to '$WORKSTATION_DIR/$REPO_NAME'."
-else
-  echo "Failed to clone the repository."
-  exit 1
-fi
+echo "Repository cloned successfully to '$WORKSTATION_DIR/$REPO_NAME'."
