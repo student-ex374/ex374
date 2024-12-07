@@ -87,8 +87,7 @@ cd "$TMP_DIR"
 execute git remote rm origin
 execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
 execute git branch -M main
-execute git fetch origin || execute git push --set-upstream origin main
-execute git push origin main -f
+execute git push --set-upstream origin main -f
 cd -
 
 # Clean up temporary GitHub clone
