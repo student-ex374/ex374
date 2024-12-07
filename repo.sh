@@ -77,17 +77,15 @@ token.set_token('$TOKEN')
 token.save
 EOF
 
-# Step 3: Initialize Remote Repository with a Temporary Branch
-echo "Initializing remote repository '$REPO_NAME'..."
+# Step 3: Push Initial Commit to Main Branch
+echo "Initializing remote repository '$REPO_NAME' with an initial commit..."
 TMP_INIT_DIR=$(mktemp -d)
 cd "$TMP_INIT_DIR"
 execute git init
 execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
 execute touch README.md
 execute git add README.md
-execute git commit -m "Initialize repository"
-execute git push -u origin HEAD:temp-branch
-execute git push origin --delete temp-branch  # Cleanup temporary branch
+execute git commit -m "Initial commit"
 execute git branch -M main
 execute git push -u origin main
 cd -
