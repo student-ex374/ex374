@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables
+# Variables..
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 VISIBILITY="private"     # 'private', 'internal', or 'public'
@@ -84,9 +84,10 @@ execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
 
 echo "Pushing contents to GitLab repository '$REPO_NAME'..."
 cd "$TMP_DIR"
-execute git remote set-url origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+execute git remote rm origin
+execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
 execute git branch -M main
-execute git push -u origin main
+execute git push origin main
 cd -
 
 # Clean up temporary GitHub clone
