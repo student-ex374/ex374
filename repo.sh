@@ -19,6 +19,23 @@ execute() {
   fi
 }
 
+# Function to set the default branch in GitLab
+set_default_branch() {
+  local branch_name=$1
+  local repo_name=$2
+  echo "Setting default branch '$branch_name' for repository '$repo_name'..."
+  curl -s --request PUT \
+    --header "PRIVATE-TOKEN: $TOKEN" \
+    --data "default_branch=$branch_name" \
+    "$GITLAB_URL/api/v4/projects/$(echo $USER_USERNAME/$repo_name | sed 's/\//%2F/g')"
+}
+
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+  echo "This script must be run as root."
+  exit 1
+fi
+
 # Step 1: Delete the Repository if it Exists
 echo "Checking if repository '$REPO_NAME' already exists..."
 gitlab-rails console <<EOF
@@ -61,54 +78,27 @@ else
   puts "Error: #{project.errors.full_messages.join(', ')}"
   exit 1
 end
-
-# Generate a Personal Access Token for the user
-token = user.personal_access_tokens.find_by(name: 'Automated Clone Token') ||
-  user.personal_access_tokens.create!(
-    name: 'Automated Clone Token',
-    scopes: [:read_repository, :write_repository]
-  )
-token.set_token('$TOKEN')
-token.save
 EOF
 
-# Step 3: Verify Repository Readiness
-echo "Verifying repository readiness via GitLab Rails console..."
-gitlab-rails console <<EOF
-project = Project.find_by_full_path('$USER_USERNAME/$REPO_NAME')
-if project.nil?
-  puts "Error: Repository '$USER_USERNAME/$REPO_NAME' does not exist."
-  exit 1
-end
-
-if !project.repository.exists?
-  puts "Error: Repository storage for '$USER_USERNAME/$REPO_NAME' is not initialized."
-  exit 1
-end
-
-puts "Repository storage is ready."
-EOF
-
-# Step 4: Debug Git Push to Main
-echo "Initializing remote repository '$REPO_NAME' with an initial commit for debugging..."
+# Step 3: Initialize Repository with Default Branch
+echo "Initializing remote repository '$REPO_NAME'..."
 TMP_INIT_DIR=$(mktemp -d)
 cd "$TMP_INIT_DIR"
 execute git init
 execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
-echo "Testing push: Adding a debug README.md..."
 execute touch README.md
 execute git add README.md
-execute git commit -m "Debug initial commit"
+execute git commit -m "Initialize repository"
 execute git branch -M main
-
-echo "Attempting push to remote repository..."
 execute git push -u origin main
 
-echo "Initial commit pushed successfully. Debugging phase complete."
+# Set default branch in GitLab
+set_default_branch "main" "$REPO_NAME"
+
 cd -
 rm -rf "$TMP_INIT_DIR"
 
-# Step 5: Clone GitHub Repository and Push to GitLab
+# Step 4: Clone GitHub Repository and Push to GitLab
 echo "Cloning contents from GitHub repository '$GITHUB_REPO_URL'..."
 TMP_DIR=$(mktemp -d)
 execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
@@ -124,7 +114,7 @@ cd -
 echo "Cleaning up temporary GitHub clone..."
 rm -rf "$TMP_DIR"
 
-# Step 6: Clone the Repository on Workstation
+# Step 5: Clone the Repository on Workstation
 echo "Cloning repository to '$WORKSTATION_DIR/$REPO_NAME'..."
 mkdir -p "$WORKSTATION_DIR"
 cd "$WORKSTATION_DIR"
