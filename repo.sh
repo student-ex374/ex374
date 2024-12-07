@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables new
+# Variables 0059
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 VISIBILITY="private"     # 'private', 'internal', or 'public'
