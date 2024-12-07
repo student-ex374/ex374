@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables 0059
+# Variables 01015
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 VISIBILITY="private"     # 'private', 'internal', or 'public'
@@ -81,8 +81,9 @@ fi
 echo "Initializing repository with an initial commit..."
 
 TMP_DIR=$(mktemp -d)
-GIT_CLONE_URL="${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git"
-git clone "${GIT_CLONE_URL}" "$TMP_DIR" --quiet --config http.extraHeader="Authorization: Bearer $TOKEN"
+GIT_CLONE_URL="${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+
+git clone "$GIT_CLONE_URL" "$TMP_DIR" --quiet
 if [[ $? -ne 0 ]]; then
   echo "Failed to clone the repository. Ensure HTTPS and PAT are configured correctly."
   exit 1
@@ -104,7 +105,7 @@ echo "Cloning repository to '$WORKSTATION_DIR/$REPO_NAME'..."
 mkdir -p "$WORKSTATION_DIR"
 cd "$WORKSTATION_DIR"
 
-git clone "${GIT_CLONE_URL}" "$REPO_NAME" --quiet --config http.extraHeader="Authorization: Bearer $TOKEN"
+git clone "$GIT_CLONE_URL" "$REPO_NAME" --quiet
 if [[ $? -eq 0 ]]; then
   echo "Repository cloned successfully to '$WORKSTATION_DIR/$REPO_NAME'."
 else
