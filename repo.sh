@@ -18,6 +18,18 @@ execute() {
   fi
 }
 
+# Function to check token permissions
+check_token_permissions() {
+  echo "Checking Personal Access Token (PAT) permissions..."
+  permissions=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/personal_access_tokens")
+  if [[ -z $permissions ]]; then
+    echo "Error: Invalid or insufficiently scoped Personal Access Token."
+    echo "Please ensure your token has 'api', 'read_api', and 'write_repository' scopes."
+    exit 1
+  fi
+  echo "Token is valid and has sufficient permissions."
+}
+
 # Function to retrieve the namespace ID for the user
 get_namespace_id() {
   echo "Retrieving namespace ID for user '$USER_USERNAME'..."
@@ -60,16 +72,19 @@ delete_repository() {
     "$GITLAB_URL/api/v4/projects/$(echo $USER_USERNAME/$REPO_NAME | sed 's/\//%2F/g')"
 }
 
-# Step 1: Delete the repository if it exists
+# Step 1: Check token permissions
+check_token_permissions
+
+# Step 2: Delete the repository if it exists
 echo "Checking if repository '$REPO_NAME' exists..."
 if curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -q "\"path\":\"$REPO_NAME\""; then
   delete_repository
 fi
 
-# Step 2: Create the repository
+# Step 3: Create the repository
 create_repository
 
-# Step 3: Initialize Repository with Default Branch
+# Step 4: Initialize Repository with Default Branch
 TMP_INIT_DIR=$(mktemp -d)
 cd "$TMP_INIT_DIR"
 execute git init
@@ -78,6 +93,8 @@ execute touch README.md
 execute git add README.md
 execute git commit -m "Initialize repository"
 execute git branch -M main
+
+# Push initial commit to create the branch
 execute git push -u origin main
 
 # Set default branch in GitLab
@@ -86,7 +103,7 @@ set_default_branch "main"
 cd -
 rm -rf "$TMP_INIT_DIR"
 
-# Step 4: Clone GitHub Repository and Push to GitLab
+# Step 5: Clone GitHub Repository and Push to GitLab
 echo "Cloning contents from GitHub repository '$GITHUB_REPO_URL'..."
 TMP_DIR=$(mktemp -d)
 execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
@@ -99,11 +116,9 @@ execute git push origin main -f
 cd -
 
 # Clean up temporary GitHub clone
-echo "Cleaning up temporary GitHub clone..."
 rm -rf "$TMP_DIR"
 
-# Step 5: Clone the Repository on Workstation
-echo "Cloning repository to '$WORKSTATION_DIR/$REPO_NAME'..."
+# Step 6: Clone the Repository on Workstation
 mkdir -p "$WORKSTATION_DIR"
 cd "$WORKSTATION_DIR"
 execute git clone "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}" "$REPO_NAME"
