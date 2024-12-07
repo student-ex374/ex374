@@ -77,24 +77,37 @@ token.set_token('$TOKEN')
 token.save
 EOF
 
-# Step 3: Clone GitHub Repository and Push to GitLab
+# Step 3: Initialize Remote Repository with Default Branch
+echo "Initializing remote repository '$REPO_NAME'..."
+TMP_INIT_DIR=$(mktemp -d)
+cd "$TMP_INIT_DIR"
+execute git init
+execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+execute touch README.md
+execute git add README.md
+execute git commit -m "Initialize repository"
+execute git branch -M main
+execute git push --set-upstream origin main
+cd -
+rm -rf "$TMP_INIT_DIR"
+
+# Step 4: Clone GitHub Repository and Push to GitLab
 echo "Cloning contents from GitHub repository '$GITHUB_REPO_URL'..."
 TMP_DIR=$(mktemp -d)
 execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
 
-echo "Configuring GitLab remote and pushing contents..."
+echo "Pushing contents to GitLab repository '$REPO_NAME'..."
 cd "$TMP_DIR"
 execute git remote rm origin
 execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
-execute git branch -M main
-execute git push --set-upstream origin main -f
+execute git push origin main -f
 cd -
 
 # Clean up temporary GitHub clone
 echo "Cleaning up temporary GitHub clone..."
 rm -rf "$TMP_DIR"
 
-# Step 4: Clone the Repository on Workstation
+# Step 5: Clone the Repository on Workstation
 echo "Cloning repository to '$WORKSTATION_DIR/$REPO_NAME'..."
 mkdir -p "$WORKSTATION_DIR"
 cd "$WORKSTATION_DIR"
