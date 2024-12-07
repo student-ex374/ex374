@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables - clean & create
+# Variables new
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 VISIBILITY="private"     # 'private', 'internal', or 'public'
@@ -16,24 +16,25 @@ fi
 
 # Step 1: Delete the Repository if it Exists
 echo "Checking if repository '$REPO_NAME' already exists..."
-REPO_EXISTS=$(gitlab-rails runner "puts Project.exists?(full_path: '$USER_USERNAME/$REPO_NAME')")
+gitlab-rails console <<EOF
+user = User.find_by_username('$USER_USERNAME')
+if user.nil?
+  puts "Error: User '$USER_USERNAME' not found."
+  exit 1
+end
 
-if [[ "$REPO_EXISTS" == "true" ]]; then
-  echo "Repository '$REPO_NAME' exists. Deleting it..."
-  gitlab-rails console <<EOF
-project = Project.find_by_full_path('$USER_USERNAME/$REPO_NAME')
+project = user.namespace.projects.find_by(path: '$REPO_NAME')
 if project
   project.destroy
   puts "Repository '$REPO_NAME' deleted successfully."
 else
-  puts "Repository '$REPO_NAME' not found."
+  puts "Repository '$REPO_NAME' not found. Skipping deletion."
 end
 EOF
 
-  if [[ $? -ne 0 ]]; then
-    echo "Failed to delete the repository."
-    exit 1
-  fi
+if [[ $? -ne 0 ]]; then
+  echo "Failed to delete the repository. Please check the error logs."
+  exit 1
 fi
 
 # Step 2: Create the Repository
