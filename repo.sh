@@ -18,10 +18,18 @@ execute() {
   fi
 }
 
+# Function to retrieve the namespace ID for the user
+get_namespace_id() {
+  echo "Retrieving namespace ID for user '$USER_USERNAME'..."
+  curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | \
+  grep -oP '"id":\d+,"name":"'$USER_USERNAME'"' | grep -oP '\d+' | head -1
+}
+
 # Function to create the repository using the GitLab API
 create_repository() {
   echo "Creating repository '$REPO_NAME'..."
-  namespace_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+  local namespace_id
+  namespace_id=$(get_namespace_id)
   if [[ -z $namespace_id ]]; then
     echo "Error: Could not determine namespace ID for user '$USER_USERNAME'."
     exit 1
