@@ -41,7 +41,7 @@ project.creator = user
 if project.save
   puts "Repository '$REPO_NAME' created successfully."
 else
-  puts "Error: \#{project.errors.full_messages.join(', ')}"
+  puts "Error: #{project.errors.full_messages.join(', ')}"
   exit 1
 end
 
@@ -52,7 +52,7 @@ token = user.personal_access_tokens.create!(
 )
 token.set_token('$TOKEN')  # Assign the provided token
 token.save
-puts "Personal Access Token: \#{token.token}"
+puts "Personal Access Token: #{token.token}"
 EOF
 
   if [[ $? -ne 0 ]]; then
