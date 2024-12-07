@@ -77,7 +77,24 @@ token.set_token('$TOKEN')
 token.save
 EOF
 
-# Step 3: Retry Initial Push Until Repository is Ready
+# Step 3: Verify Repository Readiness
+echo "Verifying repository readiness..."
+gitlab-rails console <<EOF
+project = Project.find_by_full_path('$USER_USERNAME/$REPO_NAME')
+if project.nil?
+  puts "Error: Repository '$USER_USERNAME/$REPO_NAME' does not exist."
+  exit 1
+end
+
+if !project.repository.exists?
+  puts "Error: Repository storage for '$USER_USERNAME/$REPO_NAME' is not initialized."
+  exit 1
+end
+
+puts "Repository storage is ready."
+EOF
+
+# Step 4: Push Initial Commit to Main Branch
 echo "Initializing remote repository '$REPO_NAME' with an initial commit..."
 TMP_INIT_DIR=$(mktemp -d)
 cd "$TMP_INIT_DIR"
@@ -101,7 +118,7 @@ done
 cd -
 rm -rf "$TMP_INIT_DIR"
 
-# Step 4: Clone GitHub Repository and Push to GitLab
+# Step 5: Clone GitHub Repository and Push to GitLab
 echo "Cloning contents from GitHub repository '$GITHUB_REPO_URL'..."
 TMP_DIR=$(mktemp -d)
 execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
@@ -117,7 +134,7 @@ cd -
 echo "Cleaning up temporary GitHub clone..."
 rm -rf "$TMP_DIR"
 
-# Step 5: Clone the Repository on Workstation
+# Step 6: Clone the Repository on Workstation
 echo "Cloning repository to '$WORKSTATION_DIR/$REPO_NAME'..."
 mkdir -p "$WORKSTATION_DIR"
 cd "$WORKSTATION_DIR"
