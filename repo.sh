@@ -18,109 +18,32 @@ execute() {
   fi
 }
 
-# Function to check token permissions
-check_token_permissions() {
-  echo "Checking Personal Access Token (PAT) permissions..."
-  permissions=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/personal_access_tokens")
-  if [[ -z $permissions ]]; then
-    echo "Error: Invalid or insufficiently scoped Personal Access Token."
-    echo "Please ensure your token has 'api', 'read_api', and 'write_repository' scopes."
+# Function to validate the Personal Access Token
+validate_token() {
+  echo "Validating Personal Access Token (PAT)..."
+  response=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/user")
+  if echo "$response" | grep -q '"username"'; then
+    echo "PAT validation successful."
+  else
+    echo "Error: Invalid or insufficiently scoped PAT. Please ensure it has 'api' and 'write_repository' scopes."
     exit 1
   fi
-  echo "Token is valid and has sufficient permissions."
 }
 
-# Function to retrieve the namespace ID for the user
-get_namespace_id() {
-  echo "Retrieving namespace ID for user '$USER_USERNAME'..."
-  curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | \
-  grep -oP '"id":\d+,"name":"'$USER_USERNAME'"' | grep -oP '\d+' | head -1
+# Function to delete the repository if it exists
+delete_repository() {
+  echo "Checking if repository '$REPO_NAME' exists..."
+  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+  if [[ -n $project_id ]]; then
+    echo "Repository exists. Deleting it..."
+    curl -s --request DELETE --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects/$project_id"
+    echo "Repository deleted."
+  else
+    echo "Repository does not exist. Skipping deletion."
+  fi
 }
 
-# Function to create the repository using the GitLab API
+# Function to create a new repository
 create_repository() {
   echo "Creating repository '$REPO_NAME'..."
-  local namespace_id
-  namespace_id=$(get_namespace_id)
-  if [[ -z $namespace_id ]]; then
-    echo "Error: Could not determine namespace ID for user '$USER_USERNAME'."
-    exit 1
-  fi
-  curl -s --request POST "$GITLAB_URL/api/v4/projects" \
-    --header "PRIVATE-TOKEN: $TOKEN" \
-    --data "name=$REPO_NAME&namespace_id=$namespace_id&visibility=private" || {
-    echo "Error creating repository '$REPO_NAME'."
-    exit 1
-  }
-}
-
-# Function to set the default branch using the GitLab API
-set_default_branch() {
-  local branch_name=$1
-  echo "Setting default branch '$branch_name' for repository '$REPO_NAME'..."
-  curl -s --request PUT \
-    --header "PRIVATE-TOKEN: $TOKEN" \
-    --data "default_branch=$branch_name" \
-    "$GITLAB_URL/api/v4/projects/$(echo $USER_USERNAME/$REPO_NAME | sed 's/\//%2F/g')"
-}
-
-# Function to delete the repository using the GitLab API
-delete_repository() {
-  echo "Deleting repository '$REPO_NAME'..."
-  curl -s --request DELETE \
-    --header "PRIVATE-TOKEN: $TOKEN" \
-    "$GITLAB_URL/api/v4/projects/$(echo $USER_USERNAME/$REPO_NAME | sed 's/\//%2F/g')"
-}
-
-# Step 1: Check token permissions
-check_token_permissions
-
-# Step 2: Delete the repository if it exists
-echo "Checking if repository '$REPO_NAME' exists..."
-if curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -q "\"path\":\"$REPO_NAME\""; then
-  delete_repository
-fi
-
-# Step 3: Create the repository
-create_repository
-
-# Step 4: Initialize Repository with Default Branch
-TMP_INIT_DIR=$(mktemp -d)
-cd "$TMP_INIT_DIR"
-execute git init
-execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
-execute touch README.md
-execute git add README.md
-execute git commit -m "Initialize repository"
-execute git branch -M main
-
-# Push initial commit to create the branch
-execute git push -u origin main
-
-# Set default branch in GitLab
-set_default_branch "main"
-
-cd -
-rm -rf "$TMP_INIT_DIR"
-
-# Step 5: Clone GitHub Repository and Push to GitLab
-echo "Cloning contents from GitHub repository '$GITHUB_REPO_URL'..."
-TMP_DIR=$(mktemp -d)
-execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
-
-echo "Pushing contents to GitLab repository '$REPO_NAME'..."
-cd "$TMP_DIR"
-execute git remote rm origin
-execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
-execute git push origin main -f
-cd -
-
-# Clean up temporary GitHub clone
-rm -rf "$TMP_DIR"
-
-# Step 6: Clone the Repository on Workstation
-mkdir -p "$WORKSTATION_DIR"
-cd "$WORKSTATION_DIR"
-execute git clone "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}" "$REPO_NAME"
-
-echo "Repository cloned successfully to '$WORKSTATION_DIR/$REPO_NAME'."
+  namespace_id=$(curl -s --header "PRIVATE-TOKEN: $
