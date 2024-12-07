@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables 01015
+# Variables 0114
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 VISIBILITY="private"     # 'private', 'internal', or 'public'
@@ -57,6 +57,10 @@ project = Project.new(
 project.creator = user
 if project.save
   puts "Repository '$REPO_NAME' created successfully."
+
+  # Force repository creation
+  project.repository.create_if_not_exists
+  puts "Repository storage initialized."
 else
   puts "Error: #{project.errors.full_messages.join(', ')}"
   exit 1
