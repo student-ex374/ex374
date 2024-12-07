@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Variables
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 GITLAB_URL="https://git.lab.example.com"
