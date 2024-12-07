@@ -9,20 +9,15 @@ WORKSTATION_DIR="/home/student/projects"  # Directory to clone the repository
 TOKEN="auto-clone-token-123"  # Replace with a secure random token if required
 GITHUB_REPO_URL="https://github.com/sugum2901/web_server.git"
 
-# Function to suppress output unless there is an error
+# Function to execute a command with error handling
 execute() {
-  "$@" >/dev/null 2>&1
+  echo "Running: $*"
+  "$@"
   if [[ $? -ne 0 ]]; then
     echo "Error executing: $*"
     exit 1
   fi
 }
-
-# Check if running as root
-if [[ $EUID -ne 0 ]]; then
-  echo "This script must be run as root."
-  exit 1
-fi
 
 # Step 1: Delete the Repository if it Exists
 echo "Checking if repository '$REPO_NAME' already exists..."
@@ -78,7 +73,7 @@ token.save
 EOF
 
 # Step 3: Verify Repository Readiness
-echo "Verifying repository readiness..."
+echo "Verifying repository readiness via GitLab Rails console..."
 gitlab-rails console <<EOF
 project = Project.find_by_full_path('$USER_USERNAME/$REPO_NAME')
 if project.nil?
@@ -94,27 +89,22 @@ end
 puts "Repository storage is ready."
 EOF
 
-# Step 4: Push Initial Commit to Main Branch
-echo "Initializing remote repository '$REPO_NAME' with an initial commit..."
+# Step 4: Debug Git Push to Main
+echo "Initializing remote repository '$REPO_NAME' with an initial commit for debugging..."
 TMP_INIT_DIR=$(mktemp -d)
 cd "$TMP_INIT_DIR"
 execute git init
 execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+echo "Testing push: Adding a debug README.md..."
 execute touch README.md
 execute git add README.md
-execute git commit -m "Initial commit"
+execute git commit -m "Debug initial commit"
 execute git branch -M main
 
-# Retry logic for the initial push
-for attempt in {1..5}; do
-  if execute git push -u origin main; then
-    echo "Initial commit pushed successfully."
-    break
-  else
-    echo "Attempt $attempt: Repository not ready. Retrying in 5 seconds..."
-    sleep 5
-  fi
-done
+echo "Attempting push to remote repository..."
+execute git push -u origin main
+
+echo "Initial commit pushed successfully. Debugging phase complete."
 cd -
 rm -rf "$TMP_INIT_DIR"
 
