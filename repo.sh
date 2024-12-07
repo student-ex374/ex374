@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables
+# Variables - clean & create
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 VISIBILITY="private"     # 'private', 'internal', or 'public'
@@ -14,16 +14,32 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-# Step 1: Check if the Repository Already Exists
+# Step 1: Delete the Repository if it Exists
 echo "Checking if repository '$REPO_NAME' already exists..."
 REPO_EXISTS=$(gitlab-rails runner "puts Project.exists?(full_path: '$USER_USERNAME/$REPO_NAME')")
 
 if [[ "$REPO_EXISTS" == "true" ]]; then
-  echo "Repository '$REPO_NAME' already exists. Skipping creation step."
-else
-  echo "Creating repository '$REPO_NAME' for user '$USER_USERNAME'..."
-
+  echo "Repository '$REPO_NAME' exists. Deleting it..."
   gitlab-rails console <<EOF
+project = Project.find_by_full_path('$USER_USERNAME/$REPO_NAME')
+if project
+  project.destroy
+  puts "Repository '$REPO_NAME' deleted successfully."
+else
+  puts "Repository '$REPO_NAME' not found."
+end
+EOF
+
+  if [[ $? -ne 0 ]]; then
+    echo "Failed to delete the repository."
+    exit 1
+  fi
+fi
+
+# Step 2: Create the Repository
+echo "Creating repository '$REPO_NAME' for user '$USER_USERNAME'..."
+
+gitlab-rails console <<EOF
 user = User.find_by_username('$USER_USERNAME')
 if user.nil?
   puts "Error: User '$USER_USERNAME' not found."
@@ -55,13 +71,12 @@ token.save
 puts "Personal Access Token: #{token.token}"
 EOF
 
-  if [[ $? -ne 0 ]]; then
-    echo "Failed to create repository or generate access token."
-    exit 1
-  fi
+if [[ $? -ne 0 ]]; then
+  echo "Failed to create repository or generate access token."
+  exit 1
 fi
 
-# Step 2: Initialize Repository and Push Initial Commit
+# Step 3: Initialize Repository and Push Initial Commit
 echo "Initializing repository with an initial commit..."
 
 TMP_DIR=$(mktemp -d)
@@ -82,7 +97,7 @@ fi
 cd -
 rm -rf "$TMP_DIR"
 
-# Step 3: Clone the Repository on Workstation
+# Step 4: Clone the Repository on Workstation
 echo "Cloning repository to '$WORKSTATION_DIR/$REPO_NAME'..."
 
 mkdir -p "$WORKSTATION_DIR"
