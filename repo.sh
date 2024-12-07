@@ -65,7 +65,8 @@ fi
 echo "Initializing repository with an initial commit..."
 
 TMP_DIR=$(mktemp -d)
-git clone "${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git" "$TMP_DIR" --quiet --config http.extraHeader="Authorization: Bearer $TOKEN"
+GIT_CLONE_URL="${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git"
+git clone "${GIT_CLONE_URL}" "$TMP_DIR" --quiet --config http.extraHeader="Authorization: Bearer $TOKEN"
 if [[ $? -ne 0 ]]; then
   echo "Failed to clone the repository. Ensure HTTPS and PAT are configured correctly."
   exit 1
@@ -87,7 +88,6 @@ echo "Cloning repository to '$WORKSTATION_DIR/$REPO_NAME'..."
 mkdir -p "$WORKSTATION_DIR"
 cd "$WORKSTATION_DIR"
 
-GIT_CLONE_URL="${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git"
 git clone "${GIT_CLONE_URL}" "$REPO_NAME" --quiet --config http.extraHeader="Authorization: Bearer $TOKEN"
 if [[ $? -eq 0 ]]; then
   echo "Repository cloned successfully to '$WORKSTATION_DIR/$REPO_NAME'."
