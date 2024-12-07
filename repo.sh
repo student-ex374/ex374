@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables0251
+# Variables
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 GITLAB_URL="https://git.lab.example.com"
@@ -21,10 +21,17 @@ execute() {
 # Function to create the repository using the GitLab API
 create_repository() {
   echo "Creating repository '$REPO_NAME'..."
+  namespace_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+  if [[ -z $namespace_id ]]; then
+    echo "Error: Could not determine namespace ID for user '$USER_USERNAME'."
+    exit 1
+  fi
   curl -s --request POST "$GITLAB_URL/api/v4/projects" \
     --header "PRIVATE-TOKEN: $TOKEN" \
-    --data "name=$REPO_NAME&namespace_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | jq -r '.[0].id')" \
-    --data "visibility=private"
+    --data "name=$REPO_NAME&namespace_id=$namespace_id&visibility=private" || {
+    echo "Error creating repository '$REPO_NAME'."
+    exit 1
+  }
 }
 
 # Function to set the default branch using the GitLab API
@@ -54,18 +61,18 @@ fi
 # Step 2: Create the repository
 create_repository
 
-# Step 3: Initialize the repository and set the default branch
+# Step 3: Initialize Repository with Default Branch
 TMP_INIT_DIR=$(mktemp -d)
 cd "$TMP_INIT_DIR"
 execute git init
 execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
 execute touch README.md
 execute git add README.md
-execute git commit -m "Initial commit"
+execute git commit -m "Initialize repository"
 execute git branch -M main
 execute git push -u origin main
 
-# Set the default branch
+# Set default branch in GitLab
 set_default_branch "main"
 
 cd -
