@@ -66,7 +66,7 @@ initialize_repository() {
   TMP_INIT_DIR=$(mktemp -d)
   cd "$TMP_INIT_DIR"
   execute git init
-  execute git remote add origin "${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git"
+  execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
   execute touch README.md
   execute git add README.md
   execute git commit -m "Initial commit"
@@ -86,7 +86,7 @@ push_github_to_gitlab() {
   echo "Pushing contents to GitLab repository '$REPO_NAME'..."
   cd "$TMP_DIR"
   execute git remote rm origin
-  execute git remote add origin "${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git"
+  execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
   execute git push origin main -f
   cd -
   rm -rf "$TMP_DIR"
@@ -96,7 +96,7 @@ push_github_to_gitlab() {
 clone_gitlab_repo() {
   echo "Cloning GitLab repository to '$WORKSTATION_DIR/$REPO_NAME'..."
   mkdir -p "$WORKSTATION_DIR"
-  execute git clone "${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git" "$WORKSTATION_DIR/$REPO_NAME"
+  execute git clone "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}" "$WORKSTATION_DIR/$REPO_NAME"
   echo "Repository cloned successfully."
 }
 
