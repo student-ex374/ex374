@@ -60,6 +60,37 @@ create_repository() {
   echo "Repository created successfully."
 }
 
+# Function to unprotect the branch
+unprotect_branch() {
+  echo "Unprotecting branch 'main'..."
+  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+  if [[ -z $project_id ]]; then
+    echo "Error: Could not determine project ID for '$REPO_NAME'."
+    exit 1
+  fi
+  curl -s --request DELETE \
+    --header "PRIVATE-TOKEN: $TOKEN" \
+    "$GITLAB_URL/api/v4/projects/$project_id/protected_branches/main" || {
+    echo "Warning: Branch 'main' may not be protected yet."
+  }
+  echo "Branch 'main' unprotected."
+}
+
+# Function to re-protect the branch
+protect_branch() {
+  echo "Re-protecting branch 'main'..."
+  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+  if [[ -z $project_id ]]; then
+    echo "Error: Could not determine project ID for '$REPO_NAME'."
+    exit 1
+  fi
+  curl -s --request POST \
+    --header "PRIVATE-TOKEN: $TOKEN" \
+    --data "name=main&push_access_level=0&merge_access_level=0" \
+    "$GITLAB_URL/api/v4/projects/$project_id/protected_branches"
+  echo "Branch 'main' re-protected."
+}
+
 # Function to initialize the repository with a default branch
 initialize_repository() {
   echo "Initializing repository with default branch 'main'..."
@@ -83,11 +114,18 @@ push_github_to_gitlab() {
   TMP_DIR=$(mktemp -d)
   execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
 
+  echo "Unprotecting branch 'main' for force push..."
+  unprotect_branch
+
   echo "Pushing contents to GitLab repository '$REPO_NAME'..."
   cd "$TMP_DIR"
   execute git remote rm origin
   execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
   execute git push origin main -f
+
+  echo "Re-protecting branch 'main' after force push..."
+  protect_branch
+
   cd -
   rm -rf "$TMP_DIR"
 }
