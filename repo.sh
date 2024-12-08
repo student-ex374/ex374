@@ -4,7 +4,7 @@
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 GITLAB_URL="https://git.lab.example.com"
-TOKEN="your-secure-token-here"  # Replace with the newly generated PAT
+TOKEN=$1
 WORKSTATION_DIR="/home/student/projects"  # Directory to clone the repository
 GITHUB_REPO_URL="https://github.com/sugum2901/web_server.git"
 PROJECT_ID=""
