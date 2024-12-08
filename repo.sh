@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables1130
+# Variables
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 GITLAB_URL="https://git.lab.example.com"
@@ -60,36 +60,13 @@ create_repository() {
   echo "Repository created successfully."
 }
 
-# Function to wait for repository readiness
-wait_for_repository_ready() {
-  echo "Waiting for repository '$REPO_NAME' to be ready..."
-  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
-  if [[ -z $project_id ]]; then
-    echo "Error: Repository '$REPO_NAME' not found after creation."
-    exit 1
-  fi
-
-  for i in {1..5}; do
-    response=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects/$project_id/repository/branches")
-    if echo "$response" | grep -q '"name":"main"'; then
-      echo "Repository is ready with branch 'main'."
-      return 0
-    fi
-    echo "Repository not ready yet. Retrying in 5 seconds..."
-    sleep 5
-  done
-
-  echo "Error: Repository '$REPO_NAME' did not become ready in time."
-  exit 1
-}
-
 # Function to initialize the repository with a default branch
 initialize_repository() {
   echo "Initializing repository with default branch 'main'..."
   TMP_INIT_DIR=$(mktemp -d)
   cd "$TMP_INIT_DIR"
   execute git init
-  execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+  execute git remote add origin "${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git"
   execute touch README.md
   execute git add README.md
   execute git commit -m "Initial commit"
@@ -109,7 +86,7 @@ push_github_to_gitlab() {
   echo "Pushing contents to GitLab repository '$REPO_NAME'..."
   cd "$TMP_DIR"
   execute git remote rm origin
-  execute git remote add origin "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+  execute git remote add origin "${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git"
   execute git push origin main -f
   cd -
   rm -rf "$TMP_DIR"
@@ -119,7 +96,7 @@ push_github_to_gitlab() {
 clone_gitlab_repo() {
   echo "Cloning GitLab repository to '$WORKSTATION_DIR/$REPO_NAME'..."
   mkdir -p "$WORKSTATION_DIR"
-  execute git clone "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}" "$WORKSTATION_DIR/$REPO_NAME"
+  execute git clone "${GITLAB_URL}/${USER_USERNAME}/${REPO_NAME}.git" "$WORKSTATION_DIR/$REPO_NAME"
   echo "Repository cloned successfully."
 }
 
@@ -128,7 +105,6 @@ validate_token
 delete_repository
 create_repository
 initialize_repository
-wait_for_repository_ready
 push_github_to_gitlab
 clone_gitlab_repo
 
