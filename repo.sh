@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Variables
-REPO_NAME="web_server"
+REPO_NAME=$1
 USER_USERNAME="student"  # GitLab username
 GITLAB_URL="https://git.lab.example.com"
-TOKEN=$1
+TOKEN="your-secure-token-here"  # Replace with the newly generated PAT
 WORKSTATION_DIR="/home/student/projects"  # Directory to clone the repository
-GITHUB_REPO_URL="https://github.com/sugum2901/web_server.git"
+GITHUB_REPO_URL="https://github.com/sugum2901/${REPO_NAME}.git"
 PROJECT_ID=""
 
 # Helper function to execute commands with error handling
