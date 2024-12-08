@@ -8,6 +8,7 @@ WORKSTATION_DIR="/home/student/projects"  # Directory to clone the repository
 GITHUB_REPO_URL="https://github.com/sugum2901/web_server.git"
 PROJECT_ID=""
 TOKEN=""
+ADMIN_PASSWORD="new_secure_password"  # Replace with a secure admin password
 
 # Helper function to execute commands with error handling
 execute() {
@@ -19,43 +20,48 @@ execute() {
   fi
 }
 
-# Function to fetch or generate a token dynamically
-fetch_or_generate_token() {
-  echo "Fetching or generating GitLab admin token..."
-  TOKEN=$(sudo gitlab-rails runner '
-    admin = User.find_by(username: "root")
-    unless admin
-      puts "Error: Admin user not found."
+# Function to reset admin password and generate token using Rails console
+reset_admin_and_generate_token() {
+  echo "Resetting admin password and generating token via Rails console..."
+  TOKEN=$(sudo gitlab-rails runner "
+    admin = User.find_by(username: 'root')
+    if admin.nil?
+      puts 'Error: Admin user not found.'
       exit 1
     end
 
-    # Check if the token already exists
-    token = admin.personal_access_tokens.find_by(name: "Automated Script Token")
-    if token
-      if token.revoked || token.expired?
-        token.destroy
-        token = nil
-      else
-        puts token.token
-        exit 0
-      end
+    # Reset admin password
+    admin.password = '$ADMIN_PASSWORD'
+    admin.password_confirmation = '$ADMIN_PASSWORD'
+    admin.save!
+    puts 'Admin password reset successfully.'
+
+    # Check for an existing token
+    token = admin.personal_access_tokens.find_by(name: 'Automated Script Token')
+    if token && (token.revoked? || token.expired?)
+      token.destroy
+      token = nil
     end
 
-    # Generate a new token
-    token = admin.personal_access_tokens.create!(
-      name: "Automated Script Token",
-      scopes: [:api, :write_repository, :read_api],
-      expires_at: nil
-    )
-    token.set_token(SecureRandom.hex(20))
-    token.save!
+    # Create a new token if none exists
+    if token.nil?
+      token = admin.personal_access_tokens.create!(
+        name: 'Automated Script Token',
+        scopes: [:api, :write_repository, :read_api],
+        expires_at: nil
+      )
+      token.set_token(SecureRandom.hex(20))
+      token.save!
+    end
+
     puts token.token
-  ' 2>/dev/null)
+  " 2>/dev/null)
 
   if [[ -z $TOKEN ]]; then
-    echo "Error: Failed to fetch or generate a token."
+    echo "Error: Failed to reset admin password or generate token."
     exit 1
   fi
+
   echo "Token fetched or generated successfully."
 }
 
@@ -159,7 +165,7 @@ push_github_to_gitlab() {
 }
 
 # Main Execution
-fetch_or_generate_token
+reset_admin_and_generate_token
 validate_token
 delete_repository
 create_repository
