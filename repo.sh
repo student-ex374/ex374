@@ -4,13 +4,10 @@
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 GITLAB_URL="https://git.lab.example.com"
+TOKEN="your-secure-token-here"  # Replace with the newly generated PAT
 WORKSTATION_DIR="/home/student/projects"  # Directory to clone the repository
 GITHUB_REPO_URL="https://github.com/sugum2901/web_server.git"
 PROJECT_ID=""
-ADMIN_PASSWORD="new_secure_password"       # Replace with a secure password for the admin
-TOKEN_NAME="Automated Script Token"       # Name for the new Personal Access Token
-TOKEN_SCOPES="api,write_repository,read_api" # Scopes required for the token
-TOKEN=""
 
 # Helper function to execute commands with error handling
 execute() {
@@ -22,61 +19,19 @@ execute() {
   fi
 }
 
-# Step 1: Generate token
-generate_token() {
-  echo "Generating token via Rails console..."
-  TOKEN=$(sudo gitlab-rails console <<EOF
-admin = User.find_by(username: 'root')
-if admin.nil?
-  puts "Admin user 'root' not found. Exiting..."
-  exit 1
-end
-
-# Reset the admin password
-admin.password = '$ADMIN_PASSWORD'
-admin.password_confirmation = '$ADMIN_PASSWORD'
-admin.save!
-puts "Admin password reset successfully."
-
-# Check if the token already exists
-existing_token = admin.personal_access_tokens.find_by(name: '$TOKEN_NAME')
-if existing_token
-  existing_token.destroy
-  puts "Deleted existing token with name '$TOKEN_NAME'."
-end
-
-# Generate a new Personal Access Token
-scopes = '$TOKEN_SCOPES'.split(',').map(&:to_sym)
-new_token = admin.personal_access_tokens.create!(
-  name: '$TOKEN_NAME',
-  scopes: scopes,
-  expires_at: nil # You can set an expiration date, e.g., '2024-12-31'
-)
-new_token.save!
-puts new_token.token
-EOF
-)
-
-  if [[ -z $TOKEN ]]; then
-    echo "Error: Failed to generate token."
-    exit 1
-  fi
-  echo "Token generated successfully: $TOKEN"
-}
-
-# Step 2: Validate the token
+# Function to validate the Personal Access Token
 validate_token() {
   echo "Validating Personal Access Token (PAT)..."
   response=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/user")
   if echo "$response" | grep -q '"username"'; then
     echo "PAT validation successful."
   else
-    echo "Error: Invalid or insufficiently scoped PAT. Please ensure it has 'api', 'write_repository', and 'read_api' scopes."
+    echo "Error: Invalid or insufficiently scoped PAT. Please ensure it has 'api' and 'write_repository' scopes."
     exit 1
   fi
 }
 
-# Step 3: Delete repository if it exists
+# Function to delete the repository if it exists
 delete_repository() {
   echo "Checking if repository '$REPO_NAME' exists..."
   PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | jq -r '.[0].id')
@@ -91,7 +46,7 @@ delete_repository() {
   fi
 }
 
-# Step 4: Create a new repository
+# Function to create a new repository
 create_repository() {
   echo "Creating repository '$REPO_NAME'..."
   namespace_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | jq -r '.[0].id')
@@ -116,7 +71,37 @@ create_repository() {
   fi
 }
 
-# Step 5: Clone and push GitHub repo content to GitLab
+# Function to configure branch protection
+configure_branch_protection() {
+  echo "Configuring branch protection for 'main' to allow developers to push..."
+  
+  if [[ -z $PROJECT_ID ]]; then
+    echo "Error: Project ID is not set. Cannot configure branch protection."
+    exit 1
+  fi
+
+  echo "Unprotecting branch 'main'..."
+  curl -s --request DELETE \
+    --header "PRIVATE-TOKEN: $TOKEN" \
+    "$GITLAB_URL/api/v4/projects/$PROJECT_ID/protected_branches/main"
+
+  echo "Reapplying branch protection..."
+  response=$(curl -s --request POST \
+    --header "PRIVATE-TOKEN: $TOKEN" \
+    --data "name=main&push_access_level=30&merge_access_level=30" \
+    "$GITLAB_URL/api/v4/projects/$PROJECT_ID/protected_branches")
+
+  echo "Branch protection response: $response"
+
+  if echo "$response" | grep -q '"name":"main"'; then
+    echo "Branch protection configured successfully. Developers can now push to 'main'."
+  else
+    echo "Error: Failed to configure branch protection. Response: $response"
+    exit 1
+  fi
+}
+
+# Function to clone and push GitHub repo content to GitLab
 push_github_to_gitlab() {
   echo "Cloning GitHub repository '$GITHUB_REPO_URL'..."
   TMP_DIR=$(mktemp -d)
@@ -134,10 +119,10 @@ push_github_to_gitlab() {
 }
 
 # Main Execution
-generate_token
 validate_token
 delete_repository
 create_repository
+configure_branch_protection
 push_github_to_gitlab
 
 echo "All tasks completed successfully."
