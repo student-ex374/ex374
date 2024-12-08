@@ -86,6 +86,25 @@ create_repository() {
   fi
 }
 
+configure_branch_protection() {
+  echo "Configuring branch protection for 'main' to allow pushes from developers..."
+  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+
+  if [[ -z $project_id ]]; then
+    echo "Error: Could not determine project ID for '$REPO_NAME'."
+    exit 1
+  fi
+
+  curl -s --request POST \
+    --header "PRIVATE-TOKEN: $TOKEN" \
+    --data "name=main&push_access_level=30&merge_access_level=30" \
+    "$GITLAB_URL/api/v4/projects/$project_id/protected_branches" || {
+    echo "Error: Failed to configure branch protection."
+    exit 1
+  }
+
+  echo "Branch protection configured successfully. Developers can now push to 'main'."
+}
 
 # Function to unprotect the branch
 unprotect_branch() {
@@ -182,6 +201,7 @@ validate_token
 delete_repository
 create_repository
 initialize_repository
+configure_branch_protection
 push_github_to_gitlab
 clone_gitlab_repo
 
