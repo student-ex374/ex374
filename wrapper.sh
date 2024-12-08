@@ -12,9 +12,9 @@ fi
 
 echo "Token generated successfully: $TOKEN"
 
-# Step 2: Run working_repo.sh with the generated token
-echo "Running working_repo.sh with the generated token..."
-bash working_repo.sh "$TOKEN"
+# Step 2: Run repo.sh with the generated token
+echo "Running repo.sh with the generated token..."
+bash repo.sh "$TOKEN"
 
 if [[ $? -eq 0 ]]; then
   echo "Repository setup completed successfully."
