@@ -20,21 +20,15 @@ execute() {
   fi
 }
 
-# Step 1: Reset admin password and generate/fetch token with debugging
-reset_admin_and_generate_token() {
-  echo "Resetting admin password and generating token via Rails console..."
+# Step 1: Generate token manually
+generate_token() {
+  echo "Generating token via Rails console..."
   TOKEN=$(sudo gitlab-rails runner "
     admin = User.find_by(username: 'root')
     if admin.nil?
       puts 'Error: Admin user not found.'
       exit 1
     end
-
-    # Reset admin password
-    admin.password = '$ADMIN_PASSWORD'
-    admin.password_confirmation = '$ADMIN_PASSWORD'
-    admin.save!
-    puts 'Admin password reset successfully.'
 
     # Check for an existing token
     token = admin.personal_access_tokens.find_by(name: 'Automated Script Token')
@@ -58,30 +52,14 @@ reset_admin_and_generate_token() {
   " 2>/dev/null)
 
   if [[ -z $TOKEN ]]; then
-    echo "Error: Failed to reset admin password or generate token."
+    echo "Error: Failed to generate token."
     exit 1
   fi
 
-  echo "Token fetched or generated successfully: $TOKEN"
-
-  # Validate the token scopes
-  echo "Validating token scopes..."
-  curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/personal_access_tokens" | jq .
+  echo "Token generated successfully: $TOKEN"
 }
 
-# Step 2: Validate the token
-validate_token() {
-  echo "Validating Personal Access Token (PAT)..."
-  response=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/user")
-  if echo "$response" | grep -q '"username"'; then
-    echo "PAT validation successful."
-  else
-    echo "Error: Invalid or insufficiently scoped PAT. Please ensure it has 'api', 'write_repository', and 'read_api' scopes."
-    exit 1
-  fi
-}
-
-# Step 3: Delete repository if it exists
+# Step 2: Delete repository if it exists
 delete_repository() {
   echo "Checking if repository '$REPO_NAME' exists..."
   PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | jq -r '.[0].id')
@@ -96,7 +74,7 @@ delete_repository() {
   fi
 }
 
-# Step 4: Create a new repository
+# Step 3: Create a new repository
 create_repository() {
   echo "Creating repository '$REPO_NAME'..."
   namespace_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | jq -r '.[0].id')
@@ -121,37 +99,7 @@ create_repository() {
   fi
 }
 
-# Step 5: Configure branch protection
-configure_branch_protection() {
-  echo "Configuring branch protection for 'main' to allow developers to push..."
-  
-  if [[ -z $PROJECT_ID ]]; then
-    echo "Error: Project ID is not set. Cannot configure branch protection."
-    exit 1
-  fi
-
-  echo "Unprotecting branch 'main'..."
-  curl -s --request DELETE \
-    --header "PRIVATE-TOKEN: $TOKEN" \
-    "$GITLAB_URL/api/v4/projects/$PROJECT_ID/protected_branches/main"
-
-  echo "Reapplying branch protection..."
-  response=$(curl -s --request POST \
-    --header "PRIVATE-TOKEN: $TOKEN" \
-    --data "name=main&push_access_level=30&merge_access_level=30" \
-    "$GITLAB_URL/api/v4/projects/$PROJECT_ID/protected_branches")
-
-  echo "Branch protection response: $response"
-
-  if echo "$response" | grep -q '"name":"main"'; then
-    echo "Branch protection configured successfully. Developers can now push to 'main'."
-  else
-    echo "Error: Failed to configure branch protection. Response: $response"
-    exit 1
-  fi
-}
-
-# Step 6: Clone and push GitHub repo content to GitLab
+# Step 4: Push GitHub repo content to GitLab
 push_github_to_gitlab() {
   echo "Cloning GitHub repository '$GITHUB_REPO_URL'..."
   TMP_DIR=$(mktemp -d)
@@ -169,11 +117,9 @@ push_github_to_gitlab() {
 }
 
 # Main Execution
-reset_admin_and_generate_token
-validate_token
+generate_token
 delete_repository
 create_repository
-configure_branch_protection
 push_github_to_gitlab
 
 echo "All tasks completed successfully."
