@@ -51,14 +51,23 @@ create_repository() {
     echo "Error: Could not determine namespace ID for user '$USER_USERNAME'."
     exit 1
   fi
-  curl -s --request POST "$GITLAB_URL/api/v4/projects" \
+
+  echo "Namespace ID: $namespace_id"
+
+  response=$(curl -s --request POST "$GITLAB_URL/api/v4/projects" \
     --header "PRIVATE-TOKEN: $TOKEN" \
-    --data "name=$REPO_NAME&namespace_id=$namespace_id&visibility=private" || {
-    echo "Error creating repository."
+    --data "name=$REPO_NAME&namespace_id=$namespace_id&visibility=private")
+
+  echo "Repository creation response: $response"
+
+  if echo "$response" | grep -q '"id":'; then
+    echo "Repository created successfully."
+  else
+    echo "Error creating repository. Response: $response"
     exit 1
-  }
-  echo "Repository created successfully."
+  fi
 }
+
 
 # Function to unprotect the branch
 unprotect_branch() {
