@@ -20,7 +20,7 @@ execute() {
   fi
 }
 
-# Step 1: Reset admin password and fetch or generate token
+# Step 1: Reset admin password and generate/fetch token with debugging
 reset_admin_and_generate_token() {
   echo "Resetting admin password and generating token via Rails console..."
   TOKEN=$(sudo gitlab-rails runner "
@@ -63,6 +63,10 @@ reset_admin_and_generate_token() {
   fi
 
   echo "Token fetched or generated successfully: $TOKEN"
+
+  # Validate the token scopes
+  echo "Validating token scopes..."
+  curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/personal_access_tokens" | jq .
 }
 
 # Step 2: Validate the token
