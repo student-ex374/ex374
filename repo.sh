@@ -7,8 +7,10 @@ GITLAB_URL="https://git.lab.example.com"
 WORKSTATION_DIR="/home/student/projects"  # Directory to clone the repository
 GITHUB_REPO_URL="https://github.com/sugum2901/web_server.git"
 PROJECT_ID=""
+ADMIN_PASSWORD="new_secure_password"       # Replace with a secure password for the admin
+TOKEN_NAME="Automated Script Token"       # Name for the new Personal Access Token
+TOKEN_SCOPES="api,write_repository,read_api" # Scopes required for the token
 TOKEN=""
-ADMIN_PASSWORD="new_secure_password"  # Replace with a secure admin password
 
 # Helper function to execute commands with error handling
 execute() {
@@ -20,46 +22,61 @@ execute() {
   fi
 }
 
-# Step 1: Generate token manually
+# Step 1: Generate token
 generate_token() {
   echo "Generating token via Rails console..."
-  TOKEN=$(sudo gitlab-rails runner "
-    admin = User.find_by(username: 'root')
-    if admin.nil?
-      puts 'Error: Admin user not found.'
-      exit 1
-    end
+  TOKEN=$(sudo gitlab-rails console <<EOF
+admin = User.find_by(username: 'root')
+if admin.nil?
+  puts "Admin user 'root' not found. Exiting..."
+  exit 1
+end
 
-    # Check for an existing token
-    token = admin.personal_access_tokens.find_by(name: 'Automated Script Token')
-    if token && (token.revoked? || token.expired?)
-      token.destroy
-      token = nil
-    end
+# Reset the admin password
+admin.password = '$ADMIN_PASSWORD'
+admin.password_confirmation = '$ADMIN_PASSWORD'
+admin.save!
+puts "Admin password reset successfully."
 
-    # Create a new token if none exists
-    if token.nil?
-      token = admin.personal_access_tokens.create!(
-        name: 'Automated Script Token',
-        scopes: [:api, :write_repository, :read_api],
-        expires_at: nil
-      )
-      token.set_token(SecureRandom.hex(20))
-      token.save!
-    end
+# Check if the token already exists
+existing_token = admin.personal_access_tokens.find_by(name: '$TOKEN_NAME')
+if existing_token
+  existing_token.destroy
+  puts "Deleted existing token with name '$TOKEN_NAME'."
+end
 
-    puts token.token
-  " 2>/dev/null)
+# Generate a new Personal Access Token
+scopes = '$TOKEN_SCOPES'.split(',').map(&:to_sym)
+new_token = admin.personal_access_tokens.create!(
+  name: '$TOKEN_NAME',
+  scopes: scopes,
+  expires_at: nil # You can set an expiration date, e.g., '2024-12-31'
+)
+new_token.save!
+puts new_token.token
+EOF
+)
 
   if [[ -z $TOKEN ]]; then
     echo "Error: Failed to generate token."
     exit 1
   fi
-
   echo "Token generated successfully: $TOKEN"
 }
 
-# Step 2: Delete repository if it exists
+# Step 2: Validate the token
+validate_token() {
+  echo "Validating Personal Access Token (PAT)..."
+  response=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/user")
+  if echo "$response" | grep -q '"username"'; then
+    echo "PAT validation successful."
+  else
+    echo "Error: Invalid or insufficiently scoped PAT. Please ensure it has 'api', 'write_repository', and 'read_api' scopes."
+    exit 1
+  fi
+}
+
+# Step 3: Delete repository if it exists
 delete_repository() {
   echo "Checking if repository '$REPO_NAME' exists..."
   PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | jq -r '.[0].id')
@@ -74,7 +91,7 @@ delete_repository() {
   fi
 }
 
-# Step 3: Create a new repository
+# Step 4: Create a new repository
 create_repository() {
   echo "Creating repository '$REPO_NAME'..."
   namespace_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | jq -r '.[0].id')
@@ -99,7 +116,7 @@ create_repository() {
   fi
 }
 
-# Step 4: Push GitHub repo content to GitLab
+# Step 5: Clone and push GitHub repo content to GitLab
 push_github_to_gitlab() {
   echo "Cloning GitHub repository '$GITHUB_REPO_URL'..."
   TMP_DIR=$(mktemp -d)
@@ -118,6 +135,7 @@ push_github_to_gitlab() {
 
 # Main Execution
 generate_token
+validate_token
 delete_repository
 create_repository
 push_github_to_gitlab
