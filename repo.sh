@@ -87,23 +87,35 @@ create_repository() {
 }
 
 configure_branch_protection() {
-  echo "Configuring branch protection for 'main' to allow pushes from developers..."
-  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+  echo "Configuring branch protection for 'main' to allow developers to push..."
+  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | jq -r '.[0].id')
 
   if [[ -z $project_id ]]; then
     echo "Error: Could not determine project ID for '$REPO_NAME'."
     exit 1
   fi
 
-  curl -s --request POST \
+  # Remove existing branch protection
+  echo "Unprotecting branch 'main'..."
+  curl -s --request DELETE \
+    --header "PRIVATE-TOKEN: $TOKEN" \
+    "$GITLAB_URL/api/v4/projects/$project_id/protected_branches/main"
+
+  # Configure new branch protection
+  echo "Reconfiguring branch protection for 'main'..."
+  response=$(curl -s --request POST \
     --header "PRIVATE-TOKEN: $TOKEN" \
     --data "name=main&push_access_level=30&merge_access_level=30" \
-    "$GITLAB_URL/api/v4/projects/$project_id/protected_branches" || {
-    echo "Error: Failed to configure branch protection."
-    exit 1
-  }
+    "$GITLAB_URL/api/v4/projects/$project_id/protected_branches")
 
-  echo "Branch protection configured successfully. Developers can now push to 'main'."
+  echo "Branch protection response: $response"
+
+  if echo "$response" | grep -q '"name":"main"'; then
+    echo "Branch protection configured successfully. Developers can now push to 'main'."
+  else
+    echo "Error: Failed to configure branch protection. Response: $response"
+    exit 1
+  fi
 }
 
 # Function to unprotect the branch
