@@ -101,29 +101,28 @@ configure_branch_protection() {
   fi
 }
 
-# Function to initialize the repository with a default branch
-initialize_repository() {
-  echo "Initializing repository with default branch 'main'..."
-  TMP_INIT_DIR=$(mktemp -d)
-  cd "$TMP_INIT_DIR"
-  execute git init
+# Function to clone and push GitHub repo content to GitLab
+push_github_to_gitlab() {
+  echo "Cloning GitHub repository '$GITHUB_REPO_URL'..."
+  TMP_DIR=$(mktemp -d)
+  execute git clone "$GITHUB_REPO_URL" "$TMP_DIR"
+
+  echo "Pushing contents to GitLab repository '$REPO_NAME'..."
+  cd "$TMP_DIR"
   AUTHENTICATED_REPO_URL="${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}"
+  execute git remote rm origin
   execute git remote add origin "$AUTHENTICATED_REPO_URL"
-  execute touch README.md
-  execute git add README.md
-  execute git commit -m "Initial commit"
   execute git branch -M main
-  execute git push -u origin main
-  echo "Default branch 'main' initialized."
+  execute git push origin main -f
   cd -
-  rm -rf "$TMP_INIT_DIR"
+  rm -rf "$TMP_DIR"
 }
 
 # Main Execution
 validate_token
 delete_repository
 create_repository
-initialize_repository
 configure_branch_protection
+push_github_to_gitlab
 
 echo "All tasks completed successfully."
