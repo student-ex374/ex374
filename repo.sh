@@ -20,7 +20,7 @@ execute() {
   fi
 }
 
-# Function to reset admin password and generate token using Rails console
+# Step 1: Reset admin password and fetch or generate token
 reset_admin_and_generate_token() {
   echo "Resetting admin password and generating token via Rails console..."
   TOKEN=$(sudo gitlab-rails runner "
@@ -62,22 +62,22 @@ reset_admin_and_generate_token() {
     exit 1
   fi
 
-  echo "Token fetched or generated successfully."
+  echo "Token fetched or generated successfully: $TOKEN"
 }
 
-# Function to validate the token
+# Step 2: Validate the token
 validate_token() {
   echo "Validating Personal Access Token (PAT)..."
   response=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/user")
   if echo "$response" | grep -q '"username"'; then
     echo "PAT validation successful."
   else
-    echo "Error: Invalid or insufficiently scoped PAT. Please ensure it has 'api' and 'write_repository' scopes."
+    echo "Error: Invalid or insufficiently scoped PAT. Please ensure it has 'api', 'write_repository', and 'read_api' scopes."
     exit 1
   fi
 }
 
-# Function to delete the repository if it exists
+# Step 3: Delete repository if it exists
 delete_repository() {
   echo "Checking if repository '$REPO_NAME' exists..."
   PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | jq -r '.[0].id')
@@ -92,7 +92,7 @@ delete_repository() {
   fi
 }
 
-# Function to create a new repository
+# Step 4: Create a new repository
 create_repository() {
   echo "Creating repository '$REPO_NAME'..."
   namespace_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/namespaces?search=$USER_USERNAME" | jq -r '.[0].id')
@@ -117,7 +117,7 @@ create_repository() {
   fi
 }
 
-# Function to configure branch protection
+# Step 5: Configure branch protection
 configure_branch_protection() {
   echo "Configuring branch protection for 'main' to allow developers to push..."
   
@@ -147,7 +147,7 @@ configure_branch_protection() {
   fi
 }
 
-# Function to clone and push GitHub repo content to GitLab
+# Step 6: Clone and push GitHub repo content to GitLab
 push_github_to_gitlab() {
   echo "Cloning GitHub repository '$GITHUB_REPO_URL'..."
   TMP_DIR=$(mktemp -d)
