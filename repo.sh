@@ -4,7 +4,7 @@
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 GITLAB_URL="https://git.lab.example.com"
-TOKEN="auto-clone-token-123"  # Replace with your GitLab Personal Access Token
+TOKEN="your-secure-token-here"  # Replace with the newly generated PAT
 WORKSTATION_DIR="/home/student/projects"  # Directory to clone the repository
 GITHUB_REPO_URL="https://github.com/sugum2901/web_server.git"
 
@@ -72,7 +72,19 @@ initialize_repository() {
   execute git commit -m "Initial commit"
   execute git branch -M main
   execute git push -u origin main
-  echo "Default branch 'main' initialized."
+
+  # Set default branch using the GitLab API
+  echo "Setting default branch 'main' via GitLab API..."
+  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+  if [[ -n $project_id ]]; then
+    curl -s --request PUT --header "PRIVATE-TOKEN: $TOKEN" \
+      --data "default_branch=main" "$GITLAB_URL/api/v4/projects/$project_id"
+    echo "Default branch 'main' set successfully."
+  else
+    echo "Error: Could not find project ID for '$REPO_NAME'."
+    exit 1
+  fi
+
   cd -
   rm -rf "$TMP_INIT_DIR"
 }
