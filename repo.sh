@@ -34,10 +34,28 @@ validate_token() {
 delete_repository() {
   echo "Checking if repository '$REPO_NAME' exists..."
   project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+
   if [[ -n $project_id ]]; then
     echo "Repository exists. Deleting it..."
     curl -s --request DELETE --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects/$project_id"
-    echo "Repository deleted."
+    echo "Delete request sent. Waiting for deletion to complete..."
+
+    # Wait for deletion to complete
+    for i in {1..10}; do
+      project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+      if [[ -z $project_id ]]; then
+        echo "Repository successfully deleted."
+        break
+      fi
+      echo "Repository still exists. Retrying in 5 seconds... (Attempt $i)"
+      sleep 5
+    done
+
+    # If still not deleted after retries, exit with an error
+    if [[ -n $project_id ]]; then
+      echo "Error: Repository '$REPO_NAME' was not deleted after multiple attempts."
+      exit 1
+    fi
   else
     echo "Repository does not exist. Skipping deletion."
   fi
