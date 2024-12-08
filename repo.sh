@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Variables
+# Variables1130
 REPO_NAME="web_server"
 USER_USERNAME="student"  # GitLab username
 GITLAB_URL="https://git.lab.example.com"
@@ -60,6 +60,29 @@ create_repository() {
   echo "Repository created successfully."
 }
 
+# Function to wait for repository readiness
+wait_for_repository_ready() {
+  echo "Waiting for repository '$REPO_NAME' to be ready..."
+  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
+  if [[ -z $project_id ]]; then
+    echo "Error: Repository '$REPO_NAME' not found after creation."
+    exit 1
+  fi
+
+  for i in {1..5}; do
+    response=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects/$project_id/repository/branches")
+    if echo "$response" | grep -q '"name":"main"'; then
+      echo "Repository is ready with branch 'main'."
+      return 0
+    fi
+    echo "Repository not ready yet. Retrying in 5 seconds..."
+    sleep 5
+  done
+
+  echo "Error: Repository '$REPO_NAME' did not become ready in time."
+  exit 1
+}
+
 # Function to initialize the repository with a default branch
 initialize_repository() {
   echo "Initializing repository with default branch 'main'..."
@@ -72,19 +95,7 @@ initialize_repository() {
   execute git commit -m "Initial commit"
   execute git branch -M main
   execute git push -u origin main
-
-  # Set default branch using the GitLab API
-  echo "Setting default branch 'main' via GitLab API..."
-  project_id=$(curl -s --header "PRIVATE-TOKEN: $TOKEN" "$GITLAB_URL/api/v4/projects?search=$REPO_NAME" | grep -oP '"id":\d+' | head -1 | grep -oP '\d+')
-  if [[ -n $project_id ]]; then
-    curl -s --request PUT --header "PRIVATE-TOKEN: $TOKEN" \
-      --data "default_branch=main" "$GITLAB_URL/api/v4/projects/$project_id"
-    echo "Default branch 'main' set successfully."
-  else
-    echo "Error: Could not find project ID for '$REPO_NAME'."
-    exit 1
-  fi
-
+  echo "Default branch 'main' initialized."
   cd -
   rm -rf "$TMP_INIT_DIR"
 }
@@ -117,6 +128,7 @@ validate_token
 delete_repository
 create_repository
 initialize_repository
+wait_for_repository_ready
 push_github_to_gitlab
 clone_gitlab_repo
 
