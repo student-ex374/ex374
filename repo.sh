@@ -24,20 +24,31 @@ fetch_or_generate_token() {
   echo "Fetching or generating GitLab admin token..."
   TOKEN=$(sudo gitlab-rails runner '
     admin = User.find_by(username: "root")
-    if admin.nil?
+    unless admin
       puts "Error: Admin user not found."
       exit 1
     end
+
+    # Check if the token already exists
     token = admin.personal_access_tokens.find_by(name: "Automated Script Token")
-    if token.nil?
-      token = admin.personal_access_tokens.create!(
-        name: "Automated Script Token",
-        scopes: [:api, :write_repository, :read_api],
-        expires_at: nil
-      )
-      token.set_token(SecureRandom.hex(20))
-      token.save!
+    if token
+      if token.revoked || token.expired?
+        token.destroy
+        token = nil
+      else
+        puts token.token
+        exit 0
+      end
     end
+
+    # Generate a new token
+    token = admin.personal_access_tokens.create!(
+      name: "Automated Script Token",
+      scopes: [:api, :write_repository, :read_api],
+      expires_at: nil
+    )
+    token.set_token(SecureRandom.hex(20))
+    token.save!
     puts token.token
   ' 2>/dev/null)
 
