@@ -142,10 +142,22 @@ push_github_to_gitlab() {
 # Function to clone the GitLab repository locally
 clone_gitlab_repo() {
   echo "Cloning GitLab repository to '$WORKSTATION_DIR/$REPO_NAME'..."
+  
+  # Check if the directory exists
+  if [[ -d "$WORKSTATION_DIR/$REPO_NAME" ]]; then
+    if [[ -z "$(ls -A "$WORKSTATION_DIR/$REPO_NAME")" ]]; then
+      echo "Directory exists but is empty. Proceeding with clone."
+    else
+      echo "Directory exists and is not empty. Cleaning up directory..."
+      rm -rf "$WORKSTATION_DIR/$REPO_NAME"
+    fi
+  fi
+  
   mkdir -p "$WORKSTATION_DIR"
   execute git clone "${GITLAB_URL/${GITLAB_URL#https://}/$USER_USERNAME:$TOKEN@${GITLAB_URL#https://}/${USER_USERNAME}/${REPO_NAME}.git}" "$WORKSTATION_DIR/$REPO_NAME"
   echo "Repository cloned successfully."
 }
+
 
 # Main Execution
 validate_token
