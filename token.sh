@@ -30,9 +30,10 @@ if existing_token
 end
 
 # Generate a new Personal Access Token
+scopes = '$TOKEN_SCOPES'.split(',').map(&:to_sym)
 new_token = admin.personal_access_tokens.create!(
   name: '$TOKEN_NAME',
-  scopes: ['$TOKEN_SCOPES'.split(',')],
+  scopes: scopes,
   expires_at: nil # You can set an expiration date, e.g., '2024-12-31'
 )
 new_token.save!
